@@ -37,7 +37,7 @@ def main():
 
     if "voice_pipeline" not in st.session_state:
         try:
-            api_key = os.environ.get("GROQ_API_KEY", "")
+            api_key = os.getenv("GROQ_API_KEY")
 
             if not api_key and hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
                 api_key = st.secrets["GROQ_API_KEY"]
@@ -52,7 +52,7 @@ def main():
     workout_started = st.session_state.get("workout_started", False)
     
     with st.sidebar:
-        st.title("🏋️‍♂️ Apna AI Coach")
+        st.title("🏋️‍♂️ AI Gym Trainer")
 
         if st.session_state.username:
             st.caption(f"👤 Login as {st.session_state.username}")
@@ -165,8 +165,9 @@ def main():
                 st.metric("Torso Angle", f"{st.session_state.torso_angle}°")
                 st.metric("Balance Status", st.session_state.balance_status)
 
-    st.title("AI Real-time GYM Coach")
+    st.title("🏋️‍♀️ AI Real-time GYM Coach")
     st.markdown("#### Real-time pose detection with proactive AI voice coaching")
+    
  
     if st.session_state.get("audio_to_play"):
         autoplay_audio(st.session_state.audio_to_play)
@@ -201,12 +202,18 @@ def main():
             key="exercise-analysis",
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessorClass,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            rtc_configuration={
+                "iceServers": [
+                    {"urls": ["stun:stun.l.google.com:19302"]},
+                    {"urls": ["stun:stun1.l.google.com:19302"]},
+                    {"urls": ["stun:stun2.l.google.com:19302"]},
+                ]
+            },
             media_stream_constraints={
                 "video": True,
-                "audio": False
+                "audio": False,
             },
-            async_processing=True
+            async_processing=True,
         )
 
         sync_metrics_update(context)
@@ -218,6 +225,7 @@ def main():
         inject_webrtc_styles()
 
     st.divider()
+
 
     st.markdown("#### Workout History")
 
