@@ -7,7 +7,7 @@ from services.state.session_defaults import initial_session_defaults
 from services.config.workout_config import EXERCISE_OPTIONS
 from services.ui.style_loader import load_css, inject_local_font, inject_webrtc_styles
 from services.persistence.exercise_repository import init_db
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 from services.vision.exercise_video_processor import VideoProcessorClass
 from services.tracking.metrics import sync_metrics_update
 from services.persistence.exercise_repository import get_users_exercises
@@ -167,7 +167,7 @@ def main():
 
     st.title("🏋️‍♀️ AI Real-time GYM Coach")
     st.markdown("#### Real-time pose detection with proactive AI voice coaching")
-    st.write("Voice pipeline:", st.session_state.voice_pipeline)
+    
  
     if st.session_state.get("audio_to_play"):
         autoplay_audio(st.session_state.audio_to_play)
@@ -198,33 +198,45 @@ def main():
             unsafe_allow_html=True,
         )
     else:
-        context = webrtc_streamer(
-            key="exercise-analysis",
-            mode=WebRtcMode.SENDRECV,
-            video_processor_factory=VideoProcessorClass,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-            media_stream_constraints={
-                "video": True,
-                "audio": False
-            },
-            async_processing=True
-        )
+        RTC_CONFIGURATION = RTCConfiguration(
+    {
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302"]},
+        ]
+    }
+)
 
-        sync_metrics_update(context)
+context = webrtc_streamer(
+    key="exercise-analysis",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration=RTC_CONFIGURATION,
+    video_processor_factory=VideoProcessorClass,
+    media_stream_constraints={
+        "video": True,
+        "audio": False,
+    },
+    async_processing=True,
+)
+        
+        
 
-        if context.state.playing:
+sync_metrics_update(context)
+
+if context.state.playing:
             time.sleep(0.25)
             st.rerun()
 
-        inject_webrtc_styles()
+inject_webrtc_styles()
 
-    st.divider()
+st.divider()
 
-    st.markdown("#### Workout History")
+st.markdown("#### Workout History")
 
-    user_id = st.session_state.get("user_id", 0)
+user_id = st.session_state.get("user_id", 0)
 
-    if isinstance(user_id, int):
+if isinstance(user_id, int):
         history_rows = get_users_exercises(user_id)
 
         arr = [
