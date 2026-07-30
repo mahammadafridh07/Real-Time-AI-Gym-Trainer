@@ -16,7 +16,53 @@ from services.coaching.llm import LLMCoach
 from services.coaching.tts import TextToSpeech
 from services.coaching.voice_pipeline import VoicePipeline, autoplay_audio
 
-  
+
+def get_rtc_configuration():
+    """
+    Build the WebRTC ICE server configuration.
+    Includes public STUN servers plus a TURN server (required for
+    reliable connections on Streamlit Community Cloud, since direct
+    peer-to-peer UDP is often blocked there).
+
+    TURN credentials are read from st.secrets if available; falls back
+    to STUN-only if TURN secrets are not configured (connection may
+    then fail on restrictive networks like Streamlit Cloud).
+    """
+    ice_servers = [
+        {"urls": ["stun:stun.l.google.com:19302"]},
+        {"urls": ["stun:stun1.l.google.com:19302"]},
+        {"urls": ["stun:stun2.l.google.com:19302"]},
+    ]
+
+    turn_url = None
+    turn_username = None
+    turn_credential = None
+
+    try:
+        if hasattr(st, "secrets"):
+            turn_url = st.secrets.get("TURN_URL")
+            turn_username = st.secrets.get("TURN_USERNAME")
+            turn_credential = st.secrets.get("TURN_CREDENTIAL")
+    except Exception:
+        pass
+
+    # Allow env vars as a fallback too (useful for local dev)
+    turn_url = turn_url or os.getenv("TURN_URL")
+    turn_username = turn_username or os.getenv("TURN_USERNAME")
+    turn_credential = turn_credential or os.getenv("TURN_CREDENTIAL")
+
+    if turn_url and turn_username and turn_credential:
+        ice_servers.append(
+            {
+                "urls": [turn_url],
+                "username": turn_username,
+                "credential": turn_credential,
+            }
+        )
+
+    return {"iceServers": ice_servers}
+
+
 def main():
     st.set_page_config(
         page_icon="🏋️‍♀️",
@@ -31,7 +77,7 @@ def main():
     init_db()
 
     if not render_login_wall():
-        return 
+        return
 
     initial_session_defaults()
 
@@ -41,7 +87,7 @@ def main():
 
             if not api_key and hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
                 api_key = st.secrets["GROQ_API_KEY"]
-            
+
             groq_client = Groq(api_key=api_key)
             llm_coach = LLMCoach(groq_client)
             tts = TextToSpeech()
@@ -50,7 +96,7 @@ def main():
             st.session_state.voice_pipeline = None
 
     workout_started = st.session_state.get("workout_started", False)
-    
+
     with st.sidebar:
         st.title("🏋️‍♂️ AI Gym Trainer")
 
@@ -87,7 +133,7 @@ def main():
                         exercise=plan_exercise,
                         metrics={}
                     )
-                    
+
                     if result:
                         st.session_state.audio_to_play, st.session_state.coach_feedback = result
 
@@ -105,7 +151,7 @@ def main():
 
             if end_session_button:
                 st.session_state.workout_started = False
-                
+
                 if st.session_state.voice_pipeline:
                     result = st.session_state.voice_pipeline.process_event(
                         event="workout_completed",
@@ -167,8 +213,7 @@ def main():
 
     st.title("🏋️‍♀️ AI Real-time GYM Coach")
     st.markdown("#### Real-time pose detection with proactive AI voice coaching")
-    
- 
+
     if st.session_state.get("audio_to_play"):
         autoplay_audio(st.session_state.audio_to_play)
 
@@ -202,13 +247,7 @@ def main():
             key="exercise-analysis",
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessorClass,
-            rtc_configuration={
-                "iceServers": [
-                    {"urls": ["stun:stun.l.google.com:19302"]},
-                    {"urls": ["stun:stun1.l.google.com:19302"]},
-                    {"urls": ["stun:stun2.l.google.com:19302"]},
-                ]
-            },
+            rtc_configuration=get_rtc_configuration(),
             media_stream_constraints={
                 "video": True,
                 "audio": False,
@@ -225,7 +264,6 @@ def main():
         inject_webrtc_styles()
 
     st.divider()
-
 
     st.markdown("#### Workout History")
 
@@ -262,4 +300,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
