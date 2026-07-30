@@ -25,7 +25,8 @@ class VideoProcessorClass(VideoProcessorBase):
         BASE_DIR = Path(__file__).resolve().parents[2]  # Main App folder
         model_path = BASE_DIR / "ml_models" / "pose_landmarker_full.task"
         
-        print("Model path:", model_path)  # Optional: for debugging
+        print("Model exists:", model_path.exists()) # Optional: for debugging
+        print("Model path:", model_path)
         
         base_option = python.BaseOptions(model_asset_path=str(model_path))
 
