@@ -7,7 +7,7 @@ from services.state.session_defaults import initial_session_defaults
 from services.config.workout_config import EXERCISE_OPTIONS
 from services.ui.style_loader import load_css, inject_local_font, inject_webrtc_styles
 from services.persistence.exercise_repository import init_db
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from services.vision.exercise_video_processor import VideoProcessorClass
 from services.tracking.metrics import sync_metrics_update
 from services.persistence.exercise_repository import get_users_exercises
@@ -37,7 +37,7 @@ def main():
 
     if "voice_pipeline" not in st.session_state:
         try:
-            api_key = os.getenv("GROQ_API_KEY")
+            api_key = os.environ.get("GROQ_API_KEY", "")
 
             if not api_key and hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
                 api_key = st.secrets["GROQ_API_KEY"]
@@ -52,7 +52,7 @@ def main():
     workout_started = st.session_state.get("workout_started", False)
     
     with st.sidebar:
-        st.title("🏋️‍♂️ AI Gym Trainer")
+        st.title("🏋️‍♂️ Apna AI Coach")
 
         if st.session_state.username:
             st.caption(f"👤 Login as {st.session_state.username}")
@@ -165,9 +165,8 @@ def main():
                 st.metric("Torso Angle", f"{st.session_state.torso_angle}°")
                 st.metric("Balance Status", st.session_state.balance_status)
 
-    st.title("🏋️‍♀️ AI Real-time GYM Coach")
+    st.title("AI Real-time GYM Coach")
     st.markdown("#### Real-time pose detection with proactive AI voice coaching")
-    
  
     if st.session_state.get("audio_to_play"):
         autoplay_audio(st.session_state.audio_to_play)
@@ -198,45 +197,33 @@ def main():
             unsafe_allow_html=True,
         )
     else:
-        RTC_CONFIGURATION = RTCConfiguration(
-    {
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun2.l.google.com:19302"]},
-        ]
-    }
-)
+        context = webrtc_streamer(
+            key="exercise-analysis",
+            mode=WebRtcMode.SENDRECV,
+            video_processor_factory=VideoProcessorClass,
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            media_stream_constraints={
+                "video": True,
+                "audio": False
+            },
+            async_processing=True
+        )
 
-context = webrtc_streamer(
-    key="exercise-analysis",
-    mode=WebRtcMode.SENDRECV,
-    rtc_configuration=RTC_CONFIGURATION,
-    video_processor_factory=VideoProcessorClass,
-    media_stream_constraints={
-        "video": True,
-        "audio": False,
-    },
-    async_processing=True,
-)
-        
-        
+        sync_metrics_update(context)
 
-sync_metrics_update(context)
-
-if context.state.playing:
+        if context.state.playing:
             time.sleep(0.25)
             st.rerun()
 
-inject_webrtc_styles()
+        inject_webrtc_styles()
 
-st.divider()
+    st.divider()
 
-st.markdown("#### Workout History")
+    st.markdown("#### Workout History")
 
-user_id = st.session_state.get("user_id", 0)
+    user_id = st.session_state.get("user_id", 0)
 
-if isinstance(user_id, int):
+    if isinstance(user_id, int):
         history_rows = get_users_exercises(user_id)
 
         arr = [
